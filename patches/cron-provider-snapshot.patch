@@ -1,0 +1,38 @@
+diff --git a/cron/jobs.py b/cron/jobs.py
+index 27b71663..22759a3a 100644
+--- a/cron/jobs.py
++++ b/cron/jobs.py
+@@ -1622,7 +1622,15 @@ def _compute_provider_model_snapshots(
+             if normalized_base_url:
+                 runtime_kwargs["explicit_base_url"] = normalized_base_url
+             snap = resolve_runtime_provider(**runtime_kwargs)
+-            provider_snapshot = str(snap.get("provider") or "").strip().lower() or None
++            # Snapshot the name the resolver can round-trip, not the generic family it
++            # returns. For a user-defined provider (``providers:`` in config.yaml) the
++            # family is "custom" while ``requested_provider`` is the actual key, e.g.
++            # "aimlapi". Re-resolving "custom" yields a runtime with no api_key and a
++            # foreign base_url, so every such job fires into "No LLM provider configured".
++            provider_snapshot = (
++                str(snap.get("requested_provider") or snap.get("provider") or "")
++                .strip().lower() or None
++            )
+     if normalized_model is None:
+         with contextlib.suppress(Exception):
+             model_snapshot = _resolve_default_model_snapshot() or None
+diff --git a/cron/scheduler.py b/cron/scheduler.py
+index ebdd73f9..8d25306a 100644
+--- a/cron/scheduler.py
++++ b/cron/scheduler.py
+@@ -1501,6 +1501,12 @@ def _resolve_job_runtime(job: dict, job_id: str, jc: _CronJobConfig) -> tuple[di
+         # None (not the config provider) keeps the legacy no-snapshot path resolving from persisted
+         # config exactly as before.
+         requested = _snapshot_pin(job, "provider", global_provider, job_id) or None
++        # Generic literals are resolver families, not provider names: re-resolving "custom"
++        # yields a runtime with no api_key and a foreign base_url, so a job pinned to one
++        # fires into "No LLM provider configured" forever. Ignore such a pin and fall back
++        # to the global provider — this also revives jobs persisted before the snapshot fix.
++        if requested and str(requested).strip().lower() in {"custom", "auto"}:
++            requested = global_provider or None
+     try:
+         # Do NOT pass HERMES_INFERENCE_PROVIDER as `requested`: it would override persisted config
+         # and resurrect stale providers for unpinned jobs.
