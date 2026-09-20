@@ -17,6 +17,9 @@ Mac (РФ) ──git push──► GitHub ◄──git pull── сервер T
 ```
 patches/cron-provider-snapshot.patch   исправление бага cron
 skills/medlift/publicia/SKILL.md       навык: платформа Publicia
+skills/medlift/publicia/references/    справочники навыка, грузятся по требованию
+agent-scripts/publicia-pulse.sh        снимок состояния платформы (монитор-режим cron)
+agent-scripts/publicia-events.sh       чтение ленты событий по курсору
 scripts/apply.sh                       применить всё на сервере
 scripts/stage2.sh                      правка cron + токен Publicia + навык
 scripts/stage3.sh                      упрощение маршрутизации моделей

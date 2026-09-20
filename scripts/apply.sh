@@ -74,10 +74,17 @@ print('  ИТОГ:', 'OK ключ есть' if rt.get('api_key') else 'ПЛОХ�
       '| base_url:', str(rt.get('base_url'))[:44])
 PY"
 
-log "3/5 Навык Publicia"
-sudo -u hermes mkdir -p "$HH/skills/medlift/publicia"
+log "3/5 Навык Publicia и инструменты агента"
+sudo -u hermes mkdir -p "$HH/skills/medlift/publicia/references" "$HH/scripts" "$HH/state/publicia"
 sudo -u hermes cp "$HERE/skills/medlift/publicia/SKILL.md" "$HH/skills/medlift/publicia/SKILL.md"
-echo "  навык установлен"
+sudo -u hermes cp "$HERE"/skills/medlift/publicia/references/*.md "$HH/skills/medlift/publicia/references/"
+echo "  навык установлен ($(ls -1 "$HH/skills/medlift/publicia/references" | wc -l | tr -d ' ') справочника)"
+
+# Скрипты планировщика обязаны лежать именно в $HH/scripts — путь проверяется
+# на выход за каталог (cron/scheduler_script.py), symlink не подойдёт.
+sudo -u hermes cp "$HERE"/agent-scripts/publicia-*.sh "$HH/scripts/"
+sudo -u hermes chmod +x "$HH"/scripts/publicia-*.sh
+echo "  инструменты установлены: $(ls -1 "$HH"/scripts/publicia-*.sh | xargs -n1 basename | tr '\n' ' ')"
 
 if [ -n "${PUB_TOKEN:-}" ]; then
   grep -q '^PUBLICIA_SERVICE_TOKEN=' "$HH/.env" 2>/dev/null \
