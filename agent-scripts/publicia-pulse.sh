@@ -34,8 +34,33 @@ get() {
   printf '%s' "$body"
 }
 
-# Счётчик с честной пометкой упёртости в страницу: 200+ вместо тихой лжи «200».
-count_of() { jq -r '((.items // []) | length | tostring) + (if .has_more then "+" else "" end)'; }
+# Шумные счётчики отдаём диапазоном, а не точным числом. На проде в разборе
+# сотни карточек внимания и эскалаций: точное число меняется почти каждый тик,
+# и монитор будил бы модель постоянно. Диапазон меняется, когда сдвиг
+# осмысленный. Точными остаются статусы компонентов и инциденты по важности —
+# там и сигнал выше, и дёрганья меньше.
+BUCKET='
+  def bucket($n; $more):
+    if $more then "200+"
+    elif $n <= 2 then ($n | tostring)
+    elif $n <= 5 then "3-5"
+    elif $n <= 10 then "6-10"
+    elif $n <= 20 then "11-20"
+    elif $n <= 50 then "21-50"
+    elif $n <= 100 then "51-100"
+    else "101-200" end;
+  def total: bucket((.items // []) | length; .has_more // false);
+'
+
+# Разбивка по видам осмысленна только на полной выборке. Если страница
+# упёрлась в предел, это не распределение, а первые 200 записей — печатать
+# его значило бы выдавать срез за картину.
+breakdown() { # breakdown <тело> <поле> <префикс строки>
+  printf '%s' "$1" | jq -r --arg field "$2" --arg prefix "$3" '
+    if (.has_more // false) then "\($prefix) выборка неполна"
+    else ((.items // []) | group_by(.[$field]) | map("\($prefix) \(.[0][$field]) \(length)") | .[]) // empty
+    end'
+}
 
 health=$(get '/system-health')
 incidents=$(get '/incidents?limit=200')
@@ -60,13 +85,10 @@ printf '%s' "$incidents" | jq -r '
       | join(" "))
     + (if (.has_more // false) then " (страница полна)" else "" end)'
 
-printf 'sla_violations %s\n' "$(printf '%s' "$sla" | count_of)"
-printf '%s' "$sla" | jq -r '
-  ((.items // []) | group_by(.kind) | map("sla_kind \(.[0].kind) \(length)") | .[])
-  // empty'
+printf 'sla_violations %s\n' "$(printf '%s' "$sla" | jq -r "$BUCKET total")"
+breakdown "$sla" kind sla_kind
 
-printf 'escalations_open %s\n' "$(printf '%s' "$escalations" | count_of)"
-printf 'attention_open %s\n' "$(printf '%s' "$attention" | count_of)"
-printf '%s' "$attention" | jq -r '
-  ((.items // []) | group_by(.category) | map("attention_category \(.[0].category) \(length)") | .[])
-  // empty'
+printf 'escalations_open %s\n' "$(printf '%s' "$escalations" | jq -r "$BUCKET total")"
+
+printf 'attention_open %s\n' "$(printf '%s' "$attention" | jq -r "$BUCKET total")"
+breakdown "$attention" category attention_category
