@@ -7,6 +7,11 @@
 журнала ключ идемпотентности **молча игнорируется**, и повтор после сбоя сети
 создаст вторую запись.
 
+Сверено с живым API 25.09. HERMES_SETUP той же редакции пишет, что старым ручкам
+«добавились лимиты частоты и журнал», — это не так: `/metrics`, `/deals`, `/listings`,
+`/templates`, `POST /tasks`, `POST /notes`, `/actions/create-task` по-прежнему отвечают
+без `X-RateLimit-*` и в `GET /audit-log` не попадают. Верь колонке, а не документу.
+
 ## Без токена
 
 | Ручка | Что отдаёт |
@@ -21,7 +26,7 @@
 | `GET /health` | любой живой токен | нет | имя токена, права, срок |
 | `GET /system-health` | `health:read` | да | 12 компонентов, статусы, подсказки |
 | `GET /events` | `events:read` | да | лента по курсору |
-| `GET /events/types` | `events:read` | да | каталог 22 типов с подсказками |
+| `GET /events/types` | `events:read` | да | каталог 27 типов с подсказками |
 | `GET /events/{id}` | `events:read` | да | одно событие |
 | `GET /audit-log` | `audit:read` | да | собственные вызовы агента |
 
@@ -37,7 +42,10 @@
 | `GET /conversations/{kind}/{id}/thread` | `data:read` | да | только переписка; курсор называется `next_before` |
 | `GET /customers/{id}` | `data:read` | да | клиент целиком |
 | `GET /payments`, `GET /payments/{kind}/{id}` | `data:read` | да | платежи; `kind` = `scopus`, `marketplace`, `referral_bot` |
-| `GET /tasks` | `data:read` | да | задачи менеджеров |
+| `GET /tasks` | `data:read` | да | задачи сотрудников; **без `state` — только открытые** |
+| `GET /tasks/{id}` | `data:read` | да | задача и её история |
+| `GET /tasks/sla-violations` | `data:read` | да | задачи людей с нарушенным сроком |
+| `GET /tasks/metrics` | `data:read` | да | `{period, metrics}`, метрики в camelCase |
 | `GET /escalations` | `data:read` | да | передачи человеку |
 | `GET /attention` | `data:read` | да | карточки внимания |
 | `GET /tickets` | `data:read` | да | обращения со сроками SLA |
@@ -45,7 +53,7 @@
 | `GET /sla/violations` | `data:read` | да | просрочки одним списком |
 | `GET /incidents`, `GET /incidents/{id}` | `incidents:read` | да | инциденты и баг-репорты |
 
-`kind` у диалога — `deal` или `support`.
+`kind` у диалога — `deal` или `support`. Всё о задачах — в `tasks.md`.
 
 Полезные фильтры: `/conversations?awaiting=human&sla=breached`,
 `/attention?status=OPEN`, `/escalations?status=OPEN`, `/tickets?sla=breached`,
@@ -67,6 +75,7 @@
 | `POST /actions/update-incident` | `incidents:write` | да | `id` |
 | `POST /actions/create-bug-report` | `incidents:write` | да | `description` |
 | `POST /actions/propose` | `proposals:write` | да | `external_key`, `title`, `change`, `rationale` |
+| `POST /tasks/{id}/annotations` | `tasks:write` | да | `kind`, `text` — задачу не меняет |
 | `POST /actions/create-task` (= `POST /tasks`) | `tasks:write` | **нет** | `title` |
 | `POST /actions/add-note` (= `POST /notes`) | `tasks:write` | **нет** | `dealId`, `text` |
 | `POST /actions/add-knowledge-proposal` | `drafts:write` | **нет** | `kind` |
@@ -159,6 +168,11 @@
 псевдонимами (`client_7f…`, `channel_…`), тексты сообщений маскируются.
 Псевдоним один и тот же во всех ответах и выгрузках, поэтому повторные
 обращения считаются и без персональных данных.
+
+С `pii:read` новые ручки отдают данные как есть — например, настоящее ФИО клиента
+в `title` задачи. Есть ли право у твоего токена, смотри в `GET /health`. Если есть,
+в Telegram, заметки, инциденты и предложения ФИО и контакты не переносить:
+ссылайся на сделку по id.
 
 Важно: на старых ручках (`/deals`, `/listings`, `/knowledge`, `/templates`,
 `/managers/*`, `/attribution/review`) обезличивание включено **всегда**, даже

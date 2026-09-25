@@ -67,8 +67,9 @@ incidents=$(get '/incidents?limit=200')
 sla=$(get '/sla/violations?limit=200')
 escalations=$(get '/escalations?status=OPEN&limit=200')
 attention=$(get '/attention?status=OPEN&limit=200')
+tasks=$(get '/tasks?state=overdue&limit=200')
 
-printf 'publicia-pulse 1\n'
+printf 'publicia-pulse 2\n'
 
 # Общий статус бывает ok, когда компоненты в unknown (system-health.ts:323),
 # поэтому печатаем каждый компонент, а не только итог. Сортировка — чтобы
@@ -92,3 +93,13 @@ printf 'escalations_open %s\n' "$(printf '%s' "$escalations" | jq -r "$BUCKET to
 
 printf 'attention_open %s\n' "$(printf '%s' "$attention" | jq -r "$BUCKET total")"
 breakdown "$attention" category attention_category
+
+# Задачи ведёт движок платформы, Hermes их контролирует. Эскалаций и просрочек под
+# сотню в сутки: точное число менялось бы почти каждый тик, поэтому оба счётчика —
+# диапазоном. Уровень 3 отдельно: там платформа уже дошла до основателей, и это
+# главный повод разобраться в причине, а не ещё раз напомнить.
+printf 'tasks_overdue %s\n' "$(printf '%s' "$tasks" | jq -r "$BUCKET total")"
+printf 'tasks_overdue_l3 %s\n' "$(printf '%s' "$tasks" | jq -r "$BUCKET"'
+  (.has_more // false) as $more
+  | [(.items // [])[] | select((.escalation_level // 0) >= 3)]
+  | bucket(length; $more)')"

@@ -36,7 +36,7 @@ curl -sS -H "Authorization: Bearer $PUBLICIA_SERVICE_TOKEN" \
   иначе `client:{id}`, иначе `system`. По нему собирается вся история: рассылка
   → сообщение → диалог → попытка оплаты → оплата → продажа.
 
-## Каталог: 22 типа
+## Каталог: 27 типов
 
 | Тип | Когда | Куда смотреть дальше |
 |---|---|---|
@@ -48,7 +48,12 @@ curl -sS -H "Authorization: Bearer $PUBLICIA_SERVICE_TOKEN" \
 | `checkout.started` | клиенту выдана ссылка на оплату | ждать `payment.succeeded` или `checkout.abandoned` |
 | `checkout.abandoned` | ссылка выдана, оплаты нет | `GET /conversations/{kind}/{id}` |
 | `funnel.no_progress` | сделка стоит на этапе дольше срока | `GET /sla/violations` |
-| `task.created` | задача менеджеру создана | `GET /tasks` |
+| `task.created` | задачу завёл человек, ИИ по просьбе клиента или автоматизация | `GET /tasks` |
+| `task.assigned` | движок сам создал задачу по правилу и назначил ответственного | `GET /tasks/{id}` |
+| `task.overdue` | срок прошёл, задача открыта | `GET /tasks/{id}`, `GET /tasks/sla-violations` |
+| `task.escalated` | просрочка поднята на уровень L1–L3, `payload.escalationLevel` | `GET /tasks/{id}` |
+| `task.completed` | задача выполнена; `payload.completionTrigger` — чем | `GET /tasks/{id}` |
+| `task.cancelled` | задача снята: повод исчез до выполнения | `GET /tasks/{id}` |
 | `escalation.created` | диалог передан человеку или открыта карточка | `GET /escalations`, `GET /attention` |
 | `escalation.resolved` | эскалация закрыта | `GET /escalations?status=RESOLVED` |
 | `deal.stage_changed` | сделка сменила этап воронки | `GET /conversations/deal/{id}` |
@@ -62,6 +67,10 @@ curl -sS -H "Authorization: Bearer $PUBLICIA_SERVICE_TOKEN" \
 | `incident.updated` | у инцидента сменился статус, владелец или добавлено действие | `GET /incidents/{id}` |
 | `incident.resolved` | инцидент закрыт с решением и проверкой | `GET /incidents/{id}` |
 | `health.component_changed` | компонент сменил состояние | `GET /system-health` |
+
+События `task.*` идут потоком: в первые сутки движка — под сотню просрочек и
+эскалаций. Id задачи — `payload.taskId`. Как их разбирать и на что не реагировать
+по одному — `tasks.md`.
 
 Рассрочка отдельной сущностью не моделируется: неудачный платёж по рассрочке
 приходит как `payment.failed`, а зависшие неоплаченные заказы видны в
